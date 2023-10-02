@@ -1,18 +1,13 @@
 import requests
 import json
 import pandas as pd
-import re
 import numpy as np
-import os
 import datetime as dt
-
-box_url = 'https://stats.nba.com/stats/boxscoretraditionalv2?EndPeriod=10&EndRange=28800&GameID=0041800237&RangeType=0&Season=2018-19&SeasonType=Playoffs&StartPeriod=1&StartRange=0'
-pbp_url = 'https://stats.nba.com/stats/playbyplayv2?EndPeriod=10&EndRange=55800&GameID=0041800237&RangeType=2&Season=2018-19&SeasonType=Playoffs&StartPeriod=1&StartRange=0'
+import os.path
 
 
-def get_box_score(box_url):
+def get_box_score(box_url,headers):
 
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64)', 'x-nba-stats-origin': 'stats', 'x-nba-stats-token': 'true', 'Host':'stats.nba.com', 'Referer':'https://stats.nba.com/game/0021900306/'}
     r= requests.get(box_url, headers=headers, timeout = 7)
     data = json.loads(r.text)
     box = pd.DataFrame.from_dict(data['resultSets'][0]['rowSet'])
@@ -22,19 +17,19 @@ def get_box_score(box_url):
     return box
 
 
-def get_pbp(pbp_url):
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64)', 'x-nba-stats-origin': 'stats', 'x-nba-stats-token': 'true', 'Host':'stats.nba.com', 'Referer':'https://stats.nba.com/game/0021900306/'}
-    r= requests.get(pbp_url, headers=headers, timeout = 5)
+def get_pbp(pbp_url,headers):
+
+    r= requests.get(pbp_url, headers=headers, timeout = 7)
     data = json.loads(r.text)
     pbp = pd.DataFrame.from_dict(data['resultSets'][0]['rowSet'])
     col_names = data['resultSets'][0]['headers']
     pbp.columns = col_names
     pbp.columns = pbp.columns.str.lower()
-    pbp_times = pbp['pctimestring'].str.split(':',2, expand=True)
+    pbp_times = pbp['pctimestring'].str.split(':', expand=True)
     pbp_times[0] = pbp_times[0].astype(str).astype(int)
     pbp_times[1] = pbp_times[1].astype(str).astype(int)
     pbp['timeinseconds'] = (pbp_times[0]*60) + pbp_times[1]
-    pbp['play_elapsed_time'] = pbp['timeinseconds'].shift(1)  - pbp['timeinseconds'] 
+    pbp['play_elapsed_time'] = pbp['timeinseconds'].shift(1) - pbp['timeinseconds'] 
     pbp['play_elapsed_time'] = pbp['play_elapsed_time'].fillna(0)
     pbp['play_elapsed_time'] = np.where(pbp['period'] != pbp['period'].shift(1), 0, pbp['play_elapsed_time'])
     pbp['total_elapsed_time'] = pbp.groupby(['game_id'])['play_elapsed_time'].cumsum()
@@ -62,14 +57,13 @@ def getQuarterStarters(quarter):
         end_range = 7493
     elif quarter == 3:
         start_range = 14410
-        end_range = 14640
+        end_range = 14840
     elif quarter == 4:
         start_range = 21621
         end_range = 21913
         
-    starters_url = 'https://stats.nba.com/stats/boxscoretraditionalv2?EndPeriod=14&GameID=0041800237&RangeType=2&Season=2018-19&SeasonType=Playoffs&StartPeriod=1&StartRange=' + str(start_range) + '&EndRange=' + str(end_range)
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64)', 'x-nba-stats-origin': 'stats', 'x-nba-stats-token': 'true', 'Host':'stats.nba.com', 'Referer':'https://stats.nba.com/game/0021900306/'}
-    r= requests.get(starters_url, headers=headers, timeout = 5)
+    starters_url = f'https://stats.nba.com/stats/boxscoretraditionalv2?EndPeriod=14&GameID={game_id}&RangeType=2&Season={season}&SeasonType={season_type}&StartPeriod=1&StartRange={str(start_range)}&EndRange={str(end_range)}'
+    r= requests.get(starters_url, headers=headers, timeout = 7)
     data = json.loads(r.text)
     starters = pd.DataFrame.from_dict(data['resultSets'][0]['rowSet'])
     col_names = data['resultSets'][0]['headers']
@@ -80,9 +74,9 @@ def getQuarterStarters(quarter):
 
 
 class Game():
-    def __init__(self):
-        self.pbp = get_pbp(pbp_url)
-        self.box = get_box_score(box_url)
+    def __init__(self,game_id,pbp_url,box_url,headers):
+        self.pbp = get_pbp(pbp_url,headers=headers)
+        self.box = get_box_score(box_url,headers=headers)
         self.hteam = self.box.team_abbreviation.unique()[1]
         self.ateam = self.box.team_abbreviation.unique()[0]
         self.pbp['h_lineup'] = ''
@@ -91,7 +85,7 @@ class Game():
         
     def compute_lineups(self):
         #getting starters from boxscore df
-        print('home',self.hteam)
+        print('home',self.hteam,'away',self.ateam)
         self.h_starters = self.box.loc[(self.box.start_position != '') & 
                                        (self.box.team_abbreviation == self.hteam)].reset_index()['player_id'].to_list()
         self.h_starters = sorted(self.h_starters)
@@ -107,16 +101,20 @@ class Game():
         for idx, row in self.pbp.iterrows():
             if row.pctimestring == '12:00' and row.period != 1:
                 qstart = getQuarterStarters(row.period)
-                qstarth = qstart.loc[qstart.team_abbreviation == self.hteam]
-                qstarta = qstart.loc[qstart.team_abbreviation != self.hteam]
-                self.pbp.at[idx,'h_lineup'] = sorted(qstarth.player_id.to_list())
-                self.pbp.at[idx,'a_lineup'] = sorted(qstarta.player_id.to_list())
+                qstart_h = qstart.loc[qstart.team_abbreviation == self.hteam]
+                qstart_a = qstart.loc[qstart.team_abbreviation != self.hteam]
+                self.pbp.at[idx,'h_lineup'] = sorted(qstart_h.player_id.to_list())
+                self.pbp.at[idx,'a_lineup'] = sorted(qstart_a.player_id.to_list())
         
         prev_h_lineup = self.h_starters.copy()  # Initialize with the starting lineup
         prev_a_lineup = self.a_starters.copy()  # Initialize with the starting lineup
 
         for idx, row in self.pbp.iterrows():
-            if row.pctimestring == '12:00':
+            if row.pctimestring == '12:00' and row.period == 1:
+                h_lineup = sorted(self.h_starters)
+                a_lineup = sorted(self.a_starters)
+
+            elif row.pctimestring == '12:00' and row.period != 1:
                 h_lineup = sorted(row['h_lineup'])  # Use the existing lineup for the beginning of the quarter
                 a_lineup = sorted(row['a_lineup'])  # Use the existing lineup for the beginning of the quarter
             else:
@@ -124,12 +122,18 @@ class Game():
                 a_lineup = prev_a_lineup.copy()  # Create a copy of the previous a_lineup
 
                 if isinstance(row['homedescription'], str) and row['homedescription'].startswith('SUB'):
-                    h_lineup.remove(row['player1_id'])
-                    h_lineup.append(row['player2_id'])
+                    try:
+                        h_lineup.remove(row['player1_id'])
+                        h_lineup.append(row['player2_id'])
+                    except:
+                        print(row.player1_id,row.player2_id,h_lineup,row.pctimestring,row.period)
 
                 if isinstance(row['visitordescription'], str) and row['visitordescription'].startswith('SUB'):
-                    a_lineup.remove(row['player1_id'])
-                    a_lineup.append(row['player2_id'])
+                    try:
+                        a_lineup.remove(row['player1_id'])
+                        a_lineup.append(row['player2_id'])
+                    except:
+                        print(row.player1_id,row.player2_id,a_lineup,row.pctimestring,row.period)
 
             self.pbp.at[idx, 'h_lineup'] = sorted(h_lineup)
             self.pbp.at[idx, 'a_lineup'] = sorted(a_lineup)
@@ -139,11 +143,29 @@ class Game():
         self.pbp['h_lineup'] = self.pbp['h_lineup'].apply(lambda x: tuple(x))
         return 
 
+game_ids = pd.read_csv('game_ids.csv')
+dubs = game_ids.loc[(game_ids.home=='GSW') | (game_ids.away=='GSW')]['game_id'].to_list()
+season = '2022-23'
+season_type = 'Regular+Season'
 
-#pbp = get_pbp(pbp_url)
-#box = get_box_score(box_url)
-x = Game()
-x.compute_lineups()
-print(x.pbp)
+failed = []
+for id in [dubs]:
+    game_id = '00'+str(id)
+    path = f'pbp_raw/{game_id}_pbp.csv'
+    if os.path.isfile(path):
+        try:
+            print(game_id)
+            start_range = '0'
+            box_url = f'https://stats.nba.com/stats/boxscoretraditionalv2?EndPeriod=10&EndRange=28800&GameID={game_id}&RangeType=0&Season={season}&SeasonType={season_type}&StartPeriod=1&StartRange={start_range}'
+            pbp_url = f'https://stats.nba.com/stats/playbyplayv2?EndPeriod=10&EndRange=55800&GameID={game_id}&RangeType=2&Season={season}&SeasonType={season_type}&StartPeriod=1&StartRange={start_range}'
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36', 'x-nba-stats-origin': 'stats', 'x-nba-stats-token': 'true', 'Host':'stats.nba.com', 'Referer':f'https://stats.nba.com/game/{game_id}/'}
+            print(pbp_url)
+            x = Game(game_id=id,pbp_url=pbp_url,box_url=box_url,headers=headers)
+            x.compute_lineups()
+            print(f'{game_id} is done')
+            x.pbp.to_csv(f'pbp_raw/{game_id}_pbp.csv')
+        except:
+            failed.append(game_id)
 
-x.pbp.to_csv('pbp_test.csv')
+failed_ids = pd.DataFrame(failed)
+failed_ids.to_csv('failed_ids.csv',index=False)
