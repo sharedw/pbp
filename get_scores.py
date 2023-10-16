@@ -50,16 +50,19 @@ def get_player_standing_df(preds,scores):
     df.columns= ['West','East']
     df['  '] = scores[0:8]
     df[' '] = scores[8:]
+    df.index = [1,2,3,4,5,6,7,8]
     return df[['West','  ','East',' ']]
 
 shared_df = get_player_standing_df(shared_preds,shared_score)
 cam_df = get_player_standing_df(cam_preds,cam_score)
 austy_df = get_player_standing_df(austy_preds,austy_score)
+current_df = pd.DataFrame((west[0:8],east[0:8])).T
+current_df.index = [1,2,3,4,5,6,7,8]
+current_df.columns = ['West','East']
 
-standings = pd.concat((shared_df,cam_df,austy_df),axis=1,keys=['Shared','Cam','Austy'])
+standings = pd.concat((current_df,shared_df,cam_df,austy_df),axis=1,keys=['Actual','Shared','Cam','Austy'])
 print(standings)
-st.table(standings)
-
+st.dataframe(standings)
 st.write('Shared score', sum(shared_score))
 st.write('Cam score', sum(austy_score))
 st.write('Austy score', sum(cam_score))
