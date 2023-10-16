@@ -6,7 +6,7 @@ import datetime as dt
 import os.path
 
 
-def get_box_score(box_url,headers):
+def get_box_score(box_url,headers,game_id):
 
     r= requests.get(box_url, headers=headers, timeout = 7)
     data = json.loads(r.text)
@@ -14,6 +14,7 @@ def get_box_score(box_url,headers):
     col_names = data['resultSets'][0]['headers']
     box.columns = col_names
     box.columns = box.columns.str.lower()
+    box.to_csv(f'box_scores/box_{game_id}.csv')
     return box
 
 
@@ -76,7 +77,7 @@ def getQuarterStarters(quarter):
 class Game():
     def __init__(self,game_id,pbp_url,box_url,headers):
         self.pbp = get_pbp(pbp_url,headers=headers)
-        self.box = get_box_score(box_url,headers=headers)
+        self.box = get_box_score(box_url,headers=headers,game_id=game_id)
         self.hteam = self.box.team_abbreviation.unique()[1]
         self.ateam = self.box.team_abbreviation.unique()[0]
         self.pbp['h_lineup'] = ''
@@ -149,7 +150,7 @@ season = '2022-23'
 season_type = 'Regular+Season'
 
 failed = []
-for id in [dubs]:
+for id in dubs[0:2]:
     game_id = '00'+str(id)
     path = f'pbp_raw/{game_id}_pbp.csv'
     if os.path.isfile(path):
@@ -160,7 +161,7 @@ for id in [dubs]:
             pbp_url = f'https://stats.nba.com/stats/playbyplayv2?EndPeriod=10&EndRange=55800&GameID={game_id}&RangeType=2&Season={season}&SeasonType={season_type}&StartPeriod=1&StartRange={start_range}'
             headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36', 'x-nba-stats-origin': 'stats', 'x-nba-stats-token': 'true', 'Host':'stats.nba.com', 'Referer':f'https://stats.nba.com/game/{game_id}/'}
             print(pbp_url)
-            x = Game(game_id=id,pbp_url=pbp_url,box_url=box_url,headers=headers)
+            x = Game(game_id=game_id,pbp_url=pbp_url,box_url=box_url,headers=headers)
             x.compute_lineups()
             print(f'{game_id} is done')
             x.pbp.to_csv(f'pbp_raw/{game_id}_pbp.csv')

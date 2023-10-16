@@ -1,6 +1,6 @@
 import random
 import pandas as pd
-
+import streamlit as st
 acronyms = pd.read_csv("acronyms.csv", index_col=0)
 standings = pd.read_csv("data/current_standings.csv")
 east = standings["East"].to_list()
@@ -33,20 +33,33 @@ def compute_score(pred_rank, actual_rank):
     return 0
 
 
-def sum_scores(user_pred, current_standings):
+def get_scores(user_pred, current_standings):
     scores = []
     for conf in [0,1]:
         for rank, team in enumerate(user_pred[conf]):
             res = compute_score(rank, current_standings[conf].index(team))
             scores.append(res)
-    return sum(scores)
+    return scores
 
-shared_score = sum_scores(shared_preds, standings_list)
-austy_score = sum_scores(austy_preds, standings_list)
-cam_score = sum_scores(cam_preds, standings_list)
+shared_score = get_scores(shared_preds, standings_list)
+austy_score = get_scores(austy_preds, standings_list)
+cam_score = get_scores(cam_preds, standings_list)
 
-print('Shared:',shared_score)
-print('Austypoo:',austy_score)
-print('Cammykinz:',cam_score)
+def get_player_standing_df(preds,scores):
+    df = pd.DataFrame(preds).T
+    df.columns= ['West','East']
+    df['  '] = scores[0:8]
+    df[' '] = scores[8:]
+    return df[['West','  ','East',' ']]
 
+shared_df = get_player_standing_df(shared_preds,shared_score)
+cam_df = get_player_standing_df(cam_preds,cam_score)
+austy_df = get_player_standing_df(austy_preds,austy_score)
 
+standings = pd.concat((shared_df,cam_df,austy_df),axis=1,keys=['Shared','Cam','Austy'])
+print(standings)
+st.table(standings)
+
+st.write('Shared score', sum(shared_score))
+st.write('Cam score', sum(austy_score))
+st.write('Austy score', sum(cam_score))
