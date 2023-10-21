@@ -9,7 +9,7 @@ standings_list = [west,east]
 
 shared_preds = [
     ["DEN", "PHX","GSW", "LAL", "SAC", "MEM","DAL", "OKC"],
-    ["BOS", "MIL", "CLE", "PHI", "NYK", "MIA", "ATL", "BKN"],
+    ["BOS", "MIL", "CLE", "PHI", "NYK", "MIA", "ATL", "IND"],
 ]
 
 cam_preds = [
