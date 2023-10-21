@@ -8,18 +8,18 @@ west = standings["West"].to_list()
 standings_list = [west,east]
 
 shared_preds = [
-    ["DEN", "GSW", "PHX", "LAL", "SAC", "LAC", "MEM", "DAL"],
-    ["MIL", "BOS", "CLE", "PHI", "NYK", "MIA", "NYK", "BKN"],
+    ["DEN", "PHX","GSW", "LAL", "SAC", "MEM","DAL", "OKC"],
+    ["BOS", "MIL", "CLE", "PHI", "NYK", "MIA", "ATL", "BKN"],
 ]
 
 cam_preds = [
-    random.sample(west,8),
-    random.sample(east,8)
+    ['PHX','DEN','MIN','SAC','LAL','DAL','LAC','GSW'],
+    ['MIL','BOS','NYK','CLE','PHI','BKN','IND','MIA']
 ]
 
 austy_preds = [
-    random.sample(west,8),
-    random.sample(east,8)
+    ['DEN','SAC','PHX','LAL','GSW','OKC','LAC','DAL'],
+    ['BOS','MIL','NYK','CLE','PHI','MIA','ATL','IND']
 ]
 
 def compute_score(pred_rank, actual_rank):
